@@ -1,26 +1,47 @@
 #!/usr/bin/sh
 shopt -s extglob
+#set -x
 
 title="Post install finalisation"
-LIB='k'
+
+LC=1
+LZ=2
+LK=3
+lib="$LC"
+
 OK=0
 path="${0%\/*}"
 dbg="/tmp/${0##*\/}.out"
 echo "">$dbg
 
 
+
 check()
 {
     if [ -f '/usr/bin/kdialog' ]; then
-        LIB='k'
-    else
-        LIB='z'
+        lib=$LK
+    elif [ -f '/usr/bin/zenity' ]; then
+        lib=$LZ
     fi
 }
 check
 # can force zenity or kdialog with param
-[[ "$1" == "-k" ]] && LIB='k'
-[[ "$1" == "-z" ]] && LIB='z'
+case "$1" in
+    -k) lib=$LK;;
+    -z) lib=$LZ;;
+    -c) lib=$LC;;
+esac
+if (( lib != LC )); then
+    exec &> $dbg
+fi
+
+[[ "$1" == "-h" ]] && {
+    echo -e "Params:
+    -c : console mode
+    -z : zenity GUI
+    -k : kdialog GUI";
+    exit 0;
+}
 
 ### dialogs
 
@@ -29,17 +50,26 @@ question()
 {
     local label="$1"
     [[ "$2" -gt "0" ]] && return 0
-    if [[ "$LIB" == 'k' ]]; then
+    if (( lib == LK )); then
         kdialog --yesno "$label" --title "$title" 2>/dev/null
-    else
+    elif (( lib  == LZ )); then
         zenity --question --text="$label" --title="$title" 2>/dev/null
+    else
+        local answer
+        printf "\n:: %s" "$label [Y/n] "
+        read -r -n 1 answer
+        echo
+        case $answer in
+            Y|y|'') return 0;;
+            *) return 1;
+        esac
     fi
 }
 listing()
 {
-    if [[ "$LIB" == 'k' ]]; then
+    if (( lib == LK )); then
         kdialog --textbox  "$dbg" --title "$title" 512 400 2>/dev/null
-    else
+    elif (( lib == LZ )); then
         zenity --text-info --title "$title" --filename="$dbg" --width=512 --height=400 2>/dev/null
     fi
 }
@@ -47,7 +77,7 @@ listing()
 progres()
 {
     local label="${1:-"run Pacman"} ..."
-    if [[ "$LIB" == 'z' ]]; then
+    if (( lib == LZ )); then
         zenity --progress \
             --title="$title" \
             --text="$label" \
@@ -56,6 +86,7 @@ progres()
         :
     fi
 }
+
 
 ### files conf
 
@@ -89,24 +120,22 @@ instal()
     local pkg_list="$1"
     local cmd="$2"
     local txt=$(conf_gettext "$pkg_list")
-    #echo "txt: $txt , forced: "$(conf_forced "$pkg_list")
     question "$txt" "$(conf_forced "$pkg_list")"
     txt="${txt//\?/}"
     if (( "$?"==0 )); then
         local pkgs=( $(conf_getpkg "$pkg_list") )
-        echo "--$txt" >>"$dbg"
-        echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :" >>"$dbg"
-        pacman -$cmd "${pkgs[@]}" --noconfirm --needed &>>"$dbg" | progres "$txt"
+        echo -e "\n--$txt"
+        echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :"
+        pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
         if (( "$?" != 0 )); then
             OK=1
         fi
     else
-        echo "--not installed: $txt" >>"$dbg"
+        echo "--not installed: $txt"
     fi
 }
 
 cd "$path"
-echo "path: $path" >>"$dbg"
 
 for pkg_list in *.pkgs ; do
     instal "$pkg_list" "S"
@@ -117,21 +146,27 @@ for pkg_list in *.aurs ; do
 done
 
 if [[ -f "script.sh" ]]; then
-    $(./script.sh &>>"$dbg") | progres "script exec..."
+    echo
+    if (( lib != LC )); then
+        ./script.sh &>>$dbg | progres "script exec..."
+    else
+        ./script.sh
+    fi
     (( "$?" != 0 )) && OK=1
 fi
 
 listing
-rm "$dbg" 2>/dev/null
 
 [[ -z "$path" ]] && exit 3
 if (( "$OK" != 1 )); then
     # no errors, auto remove
     question "auto remove this install software ?"
     if (( "$?"==0 )); then
-        # rm -rf "$path" 
+        # rm -vrf "$path"
         #rm "$0" "$path/*.pkgs" "$path/*.aurs" "$path/*.desktop "
         #rm "$path/*.tar.xz"
         :
     fi
 fi
+
+rm "$dbg" 2>/dev/null
