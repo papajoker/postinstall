@@ -1,11 +1,11 @@
 #!/usr/bin/sh
-
+shopt -s extglob
 
 title="Post install finalisation"
 LIB='k'
 OK=0
-dbg="/tmp/$0.out"
-#dbg="$0.out"
+path="${0%\/*}"
+dbg="/tmp/${0##*\/}.out"
 echo "">$dbg
 
 
@@ -18,12 +18,14 @@ check()
     fi
 }
 check
+# can force zenity or kdialog with param
 [[ "$1" == "-k" ]] && LIB='k'
 [[ "$1" == "-z" ]] && LIB='z'
 
 ### dialogs
 
 question()
+# if param2 : force yes
 {
     local label="$1"
     [[ "$2" -gt "0" ]] && return 0
@@ -58,6 +60,7 @@ progres()
 ### files conf
 
 conf_gettext()
+# retrieve locale label
 {
     local txt=$(awk -F':' '/#'${LANG:0:2}':/ { print $2}' "$1")
     [[ -z "$txt" ]] && txt=$(grep -m 1 '^#' "$1")
@@ -65,12 +68,14 @@ conf_gettext()
 }
 
 conf_getpkg()
+# retrieve packages
 {
     local list=$(grep -v "#" "$1")
     echo "${list// /\/n}"
 }
 
 conf_forced()
+# no question ?
 {
     local nb=$(grep -c "^#forced$" "$1")
     echo "$nb"
@@ -78,16 +83,18 @@ conf_forced()
 
 ### run
 
-function instal
+instal()
+# install package par param $2 (-S or -U)
 {
     local pkg_list="$1"
     local cmd="$2"
     local txt=$(conf_gettext "$pkg_list")
     #echo "txt: $txt , forced: "$(conf_forced "$pkg_list")
     question "$txt" "$(conf_forced "$pkg_list")"
-    txt="${txt//?}"
+    txt="${txt//\?/}"
     if (( "$?"==0 )); then
         local pkgs=( $(conf_getpkg "$pkg_list") )
+        echo "--$txt" >>"$dbg"
         echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :" >>"$dbg"
         pacman -$cmd "${pkgs[@]}" --noconfirm --needed &>>"$dbg" | progres "$txt"
         if (( "$?" != 0 )); then
@@ -98,31 +105,33 @@ function instal
     fi
 }
 
-question "pwd: $PWD ?"
+cd "$path"
+echo "path: $path" >>"$dbg"
 
-for pkg_list in ./*.pkgs ; do
+for pkg_list in *.pkgs ; do
     instal "$pkg_list" "S"
 done
 
-for pkg_list in ./*.aurs ; do
+for pkg_list in *.aurs ; do
     instal "$pkg_list" "U"
 done
 
-if [[ -f "$PWD/script.sh" ]]; then
-    $($PWD/script.sh &>>"$dbg") | progres "script exec..."
+if [[ -f "script.sh" ]]; then
+    $(./script.sh &>>"$dbg") | progres "script exec..."
     (( "$?" != 0 )) && OK=1
 fi
 
 listing
 rm "$dbg" 2>/dev/null
 
+[[ -z "$path" ]] && exit 3
 if (( "$OK" != 1 )); then
     # no errors, auto remove
     question "auto remove this install software ?"
     if (( "$?"==0 )); then
-        # rm -rf "$PWD/../" danger !
-        #rm "$0" *.pkgs *.aurs *.desktop 
-        #rm *.tar.xz
+        # rm -rf "$path" 
+        #rm "$0" "$path/*.pkgs" "$path/*.aurs" "$path/*.desktop "
+        #rm "$path/*.tar.xz"
         :
     fi
 fi
