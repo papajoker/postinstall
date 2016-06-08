@@ -1,0 +1,128 @@
+#!/usr/bin/sh
+
+
+title="Post install finalisation"
+LIB='k'
+OK=0
+dbg="/tmp/$0.out"
+#dbg="$0.out"
+echo "">$dbg
+
+
+check()
+{
+    if [ -f '/usr/bin/kdialog' ]; then
+        LIB='k'
+    else
+        LIB='z'
+    fi
+}
+check
+[[ "$1" == "-k" ]] && LIB='k'
+[[ "$1" == "-z" ]] && LIB='z'
+
+### dialogs
+
+question()
+{
+    local label="$1"
+    [[ "$2" -gt "0" ]] && return 0
+    if [[ "$LIB" == 'k' ]]; then
+        kdialog --yesno "$label" --title "$title" 2>/dev/null
+    else
+        zenity --question --text="$label" --title="$title" 2>/dev/null
+    fi
+}
+listing()
+{
+    if [[ "$LIB" == 'k' ]]; then
+        kdialog --textbox  "$dbg" --title "$title" 512 400 2>/dev/null
+    else
+        zenity --text-info --title "$title" --filename="$dbg" --width=512 --height=400 2>/dev/null
+    fi
+}
+
+progres()
+{
+    local label="${1:-"run Pacman"} ..."
+    if [[ "$LIB" == 'z' ]]; then
+        zenity --progress \
+            --title="$title" \
+            --text="$label" \
+            --percentage=0 2>/dev/null
+    else
+        :
+    fi
+}
+
+### files conf
+
+conf_gettext()
+{
+    local txt=$(awk -F':' '/#'${LANG:0:2}':/ { print $2}' "$1")
+    [[ -z "$txt" ]] && txt=$(grep -m 1 '^#' "$1")
+    echo "$txt"
+}
+
+conf_getpkg()
+{
+    local list=$(grep -v "#" "$1")
+    echo "${list// /\/n}"
+}
+
+conf_forced()
+{
+    local nb=$(grep -c "^#forced$" "$1")
+    echo "$nb"
+}
+
+### run
+
+function instal
+{
+    local pkg_list="$1"
+    local cmd="$2"
+    local txt=$(conf_gettext "$pkg_list")
+    #echo "txt: $txt , forced: "$(conf_forced "$pkg_list")
+    question "$txt" "$(conf_forced "$pkg_list")"
+    txt="${txt//?}"
+    if (( "$?"==0 )); then
+        local pkgs=( $(conf_getpkg "$pkg_list") )
+        echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :" >>"$dbg"
+        pacman -$cmd "${pkgs[@]}" --noconfirm --needed &>>"$dbg" | progres "$txt"
+        if (( "$?" != 0 )); then
+            OK=1
+        fi
+    else
+        echo "--not installed: $txt" >>"$dbg"
+    fi
+}
+
+question "pwd: $PWD ?"
+
+for pkg_list in ./*.pkgs ; do
+    instal "$pkg_list" "S"
+done
+
+for pkg_list in ./*.aurs ; do
+    instal "$pkg_list" "U"
+done
+
+if [[ -f "$PWD/script.sh" ]]; then
+    $($PWD/script.sh &>>"$dbg") | progres "script exec..."
+    (( "$?" != 0 )) && OK=1
+fi
+
+listing
+rm "$dbg" 2>/dev/null
+
+if (( "$OK" != 1 )); then
+    # no errors, auto remove
+    question "auto remove this install software ?"
+    if (( "$?"==0 )); then
+        # rm -rf "$PWD/../" danger !
+        #rm "$0" *.pkgs *.aurs *.desktop 
+        #rm *.tar.xz
+        :
+    fi
+fi

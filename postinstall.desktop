@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=finalise install
+Exec=kdesu -c "$HOME/workspace/bash/install/postinstall -k"
+Icon=exec
+Path=$HOME/workspace/bash/install/
+Type=Application
+Categories=System
