@@ -1,6 +1,7 @@
 [Desktop Entry]
-Name=finalise install
-Exec=kdesu -c "$HOME/workspace/bash/install/postinstall -z"
+Name=finalize install
+Comment=finalise install GUI
+Exec=kdesu -c "$HOME/workspace/bash/install/postinstall -k"
 Icon=package
 Type=Application
 Categories=System

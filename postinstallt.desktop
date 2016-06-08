@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=finaliseTerm 
+Comment=finalise install in Terminal
+Exec=terminator -e "bash -c $HOME/workspace/bash/install/postinstall"
+Icon=terminal
+Type=Application
+Categories=System

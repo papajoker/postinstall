@@ -2,7 +2,7 @@
 shopt -s extglob
 #set -x
 
-title="Post install finalisation"
+title="Post install finalization"
 
 LC=1
 LZ=2
@@ -15,20 +15,21 @@ dbg="/tmp/${0##*\/}.out"
 echo "">$dbg
 
 
-
 check()
 {
-    if [ -f '/usr/bin/kdialog' ]; then
+    if [[ -f '/usr/bin/kdialog' ]]; then
         lib=$LK
-    elif [ -f '/usr/bin/zenity' ]; then
+    elif [[ -f '/usr/bin/zenity' ]]; then
         lib=$LZ
     fi
 }
-check
+#check
 # can force zenity or kdialog with param
 case "$1" in
-    -k) lib=$LK;;
-    -z) lib=$LZ;;
+    -k) lib=$LK
+        [[ -f '/usr/bin/kdialog' ] || exit4;;
+    -z) lib=$LZ
+        [[ -f '/usr/bin/zenity' ] || exit4;;
     -c) lib=$LC;;
 esac
 if (( lib != LC )); then
@@ -126,7 +127,7 @@ instal()
         local pkgs=( $(conf_getpkg "$pkg_list") )
         echo -e "\n--$txt"
         echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :"
-        pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
+        sudo pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
         if (( "$?" != 0 )); then
             OK=1
         fi
@@ -148,16 +149,16 @@ done
 if [[ -f "script.sh" ]]; then
     echo
     if (( lib != LC )); then
-        ./script.sh &>>$dbg | progres "script exec..."
+        sudo ./script.sh &>>$dbg | progres "script exec..."
     else
-        ./script.sh
+        sudo ./script.sh
     fi
     (( "$?" != 0 )) && OK=1
 fi
 
 listing
 
-[[ -z "$path" ]] && exit 3
+[[ -z "$path" || "$path" == '/' ]] && exit 3
 if (( "$OK" != 1 )); then
     # no errors, auto remove
     question "auto remove this install software ?"
@@ -170,3 +171,6 @@ if (( "$OK" != 1 )); then
 fi
 
 rm "$dbg" 2>/dev/null
+if (( lib == LC )); then
+    read -r -n 1 noting
+fi
