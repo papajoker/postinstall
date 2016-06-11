@@ -8,6 +8,7 @@ title="Post install finalization"
 LC=1
 LZ=2
 LK=3
+LX=4
 lib="$LC"
 
 OK=0
@@ -22,6 +23,8 @@ check()
         lib=$LK
     elif [[ -f '/usr/bin/zenity' ]]; then
         lib=$LZ
+    elif [[ -f '/usr/bin/Xdialog' ]]; then
+        lib=$LX
     fi
 }
 #check
@@ -31,6 +34,8 @@ case "$1" in
         [[ -f '/usr/bin/kdialog' ]] || exit4;;
     -z) lib=$LZ
         [[ -f '/usr/bin/zenity' ]] || exit4;;
+    -x) lib=$LX
+        [[ -f '/usr/bin/Xdialog' ]] || exit4;;
     -c) lib=$LC;;
 esac
 if (( lib != LC )); then
@@ -41,7 +46,8 @@ fi
     echo -e "Params:
     -c : console mode
     -z : zenity GUI
-    -k : kdialog GUI";
+    -k : kdialog GUI
+    -x : xdialog GUI"
     exit 0;
 }
 
@@ -52,43 +58,48 @@ question()
 {
     local label="$1"
     [[ "$2" -gt "0" ]] && return 0
-    if (( lib == LK )); then
-        kdialog --yesno "$label" --title "$title" 2>/dev/null
-    elif (( lib  == LZ )); then
-        zenity --question --text="$label" --title="$title" 2>/dev/null
-    else
-        local answer
-        label=$(echo -e "$label")
-        printf "\n:: %s [Y/n]" "$label"
-        read -r -n 1 answer
-        echo
-        case $answer in
-            Y|y|'') return 0;;
-            *) return 1;
-        esac
-    fi
+    case "$lib" in
+        LK) kdialog --yesno "$label" --title "$title" 2>/dev/null ;;
+        LZ) zenity --question --text="$label" --title="$title" 2>/dev/null ;;
+        LX) Xdialog --title "$title" --yesno "$label" 20 80 2>/dev/null ;;
+        *)  local answer
+            label=$(echo -e "$label")
+            printf "\n:: %s [Y/n]" "$label"
+            read -r -n 1 answer
+            echo
+            case $answer in
+                Y|y|'') return 0;;
+                *) return 1;
+            esac
+            ;;
+    esac
 }
 listing()
 {
-    if (( lib == LK )); then
-        kdialog --textbox  "$dbg" --title "$title" 512 400 2>/dev/null
-    elif (( lib == LZ )); then
-        zenity --text-info --title "$title" --filename="$dbg" --width=512 --height=400 2>/dev/null
-    fi
+    case "$lib" in
+        LK) kdialog --textbox  "$dbg" --title "$title" 512 400 2>/dev/null ;;
+        LZ) zenity --text-info --title "$title" --filename="$dbg" --width=512 --height=400 2>/dev/null ;;
+        LX) Xdialog --no-cancel --title "$title" --logbox "$dbg" 40 80 2>/dev/null ;;
+    esac
 }
 
 progres()
 {
     local label="${1:-"run Pacman"} ..."
-    if (( lib == LZ )); then
-        zenity --progress \
-            --title="$title" \
-            --text="$label\n wait a moment" \
-            --pulsate \
-            --percentage=40 2>/dev/null
-    else
-        :
-    fi
+    case "$lib" in
+        LZ)
+            zenity --progress \
+                --title="$title" \
+                --text="$label\n wait a moment" \
+                --pulsate \
+                --percentage=40 2>/dev/null ;;
+        #LK)
+        #   kdialog --title="$title" \
+        #       --progressbar "$label\n wait a moment" 35 2>/dev/null ;;
+        LX)
+            Xdialog --title="$title" --no-cancel \
+                --gauge "$label\n wait a moment" 20 80 35 2>/dev/null ;;
+    esac
 }
 
 
