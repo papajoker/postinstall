@@ -2,6 +2,7 @@
 Name=finalize install
 Comment=finalise install GUI
 Exec=kdesu -c "$HOME/workspace/bash/install/postinstall -k"
+#Exec=gksu "$HOME/workspace/bash/install/postinstall -z"
 Icon=package
 Type=Application
 Categories=System

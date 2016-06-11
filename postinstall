@@ -106,7 +106,7 @@ conf_getpkg()
 # retrieve packages
 {
     local list=$(grep -v "#" "$1")
-    echo "${list// /\/n}"
+    echo "${list// /$'\n'}"
 }
 
 conf_forced()
@@ -130,7 +130,7 @@ instal()
         local pkgs=( $(conf_getpkg "$pkg_list") )
         echo -e "\n--$txt"
         echo "--pacman -$cmd ${pkgs[@]} --noconfirm --needed :"
-        sudo pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
+        ! sudo pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
         if (( "$?" != 0 )); then
             OK=1
         else
@@ -144,7 +144,13 @@ instal()
     fi
 }
 
-sudo pacman-mirrors -g
+if [[ -f "./syncrc" ]]; then
+	question "$(conf_gettext './syncrc')"
+	if (( "$?"==0 )); then
+		sudo pacman-mirrors -t 4 -g
+	fi
+fi
+
 cd "$path"
 
 for pkg_list in *.pkgs ; do
@@ -172,7 +178,8 @@ if (( "$OK" != 1 )); then
     # no errors, auto remove
     question "End\n\nauto remove this install software ?"
     if (( "$?"==0 )); then
-        # rm -vrf "$path"
+        echo ::rm -rf "$path"
+        # rm -rf "$path"
         #rm "$0" "$path/*.pkgs" "$path/*.aurs" "$path/*.desktop "
         #rm "$path/*.tar.xz"
         :
