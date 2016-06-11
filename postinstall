@@ -1,6 +1,7 @@
 #!/usr/bin/sh
 shopt -s extglob
 #set -x
+export DISPLAY=:0 
 
 title="Post install finalization"
 
@@ -27,9 +28,9 @@ check()
 # can force zenity or kdialog with param
 case "$1" in
     -k) lib=$LK
-        [[ -f '/usr/bin/kdialog' ] || exit4;;
+        [[ -f '/usr/bin/kdialog' ]] || exit4;;
     -z) lib=$LZ
-        [[ -f '/usr/bin/zenity' ] || exit4;;
+        [[ -f '/usr/bin/zenity' ]] || exit4;;
     -c) lib=$LC;;
 esac
 if (( lib != LC )); then
@@ -57,7 +58,8 @@ question()
         zenity --question --text="$label" --title="$title" 2>/dev/null
     else
         local answer
-        printf "\n:: %s" "$label [Y/n] "
+        label=$(echo -e "$label")
+        printf "\n:: %s [Y/n]" "$label"
         read -r -n 1 answer
         echo
         case $answer in
@@ -81,8 +83,9 @@ progres()
     if (( lib == LZ )); then
         zenity --progress \
             --title="$title" \
-            --text="$label" \
-            --percentage=0 2>/dev/null
+            --text="$label\n wait a moment" \
+            --pulsate \
+            --percentage=40 2>/dev/null
     else
         :
     fi
@@ -130,12 +133,18 @@ instal()
         sudo pacman -$cmd "${pkgs[@]}" --noconfirm --needed | progres "$txt"
         if (( "$?" != 0 )); then
             OK=1
+        else
+            #TODO:
+            # BUT allways return 0 :( func progres
+            echo "install OK, erase file $pkg_list"
+            #erase file "$pkg_list"
         fi
     else
         echo "--not installed: $txt"
     fi
 }
 
+sudo pacman-mirrors -g
 cd "$path"
 
 for pkg_list in *.pkgs ; do
@@ -161,7 +170,7 @@ listing
 [[ -z "$path" || "$path" == '/' ]] && exit 3
 if (( "$OK" != 1 )); then
     # no errors, auto remove
-    question "auto remove this install software ?"
+    question "End\n\nauto remove this install software ?"
     if (( "$?"==0 )); then
         # rm -vrf "$path"
         #rm "$0" "$path/*.pkgs" "$path/*.aurs" "$path/*.desktop "
